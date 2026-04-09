@@ -1,0 +1,57 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - target: bun-linux-x64
+            os: linux
+            arch: x64
+          - target: bun-linux-arm64
+            os: linux
+            arch: arm64
+          - target: bun-darwin-x64
+            os: darwin
+            arch: x64
+          - target: bun-darwin-arm64
+            os: darwin
+            arch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup mise
+        uses: jdx/mise-action@v2
+
+      - name: Install dependencies
+        run: make deps
+
+      - name: Build
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}" make build \
+            TARGET="--target ${{ matrix.target }}" \
+            BIN_PATH="dist/httpew-${{ matrix.os }}-${{ matrix.arch }}"
+
+      - name: Package
+        run: |
+          cd dist
+          tar -czf "httpew-${GITHUB_REF_NAME#v}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" \
+            "httpew-${{ matrix.os }}-${{ matrix.arch }}"
+
+      - name: Upload to release
+        run: |
+          gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

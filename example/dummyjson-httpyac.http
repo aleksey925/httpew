@@ -1,0 +1,182 @@
+
+# --------------------------------------------------
+#  httpyac extended syntax examples (dummyjson.com)
+# --------------------------------------------------
+
+@host = https://dummyjson.com
+
+###
+# @name login
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "emilys",
+  "password": "emilyspass"
+}
+
+{{
+  const { accessToken, refreshToken, id } = response.parsedBody;
+  $global.accessToken = accessToken;
+  $global.refreshToken = refreshToken;
+  $global.userId = id;
+}}
+
+###
+# @name profile
+# @ref login
+GET {{host}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+{{
+  const assert = require('assert');
+  test("profile loaded", () => {
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.parsedBody.username, "emilys");
+  });
+}}
+
+### Refresh Token
+# @ref login
+POST {{host}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}",
+  "expiresInMins": 30
+}
+
+{{
+  $global.accessToken = response.parsedBody.accessToken;
+  $global.refreshToken = response.parsedBody.refreshToken;
+}}
+
+###
+# @name searchProducts
+GET {{host}}/products/search?q=phone&limit=5
+Accept: application/json
+
+{{
+  const product = response.parsedBody.products[0];
+  $global.productId = product.id;
+  $global.productTitle = product.title;
+}}
+
+###
+# @name productDetails
+# @ref searchProducts
+GET {{host}}/products/{{productId}}
+Accept: application/json
+
+{{
+  const assert = require('assert');
+  test("correct product returned", () => {
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.parsedBody.title, $global.productTitle);
+  });
+}}
+
+### Add to Cart (depends on login + search)
+# @ref login
+# @ref searchProducts
+POST {{host}}/carts/add
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "userId": {{userId}},
+  "products": [
+    {
+      "id": {{productId}},
+      "quantity": 2
+    }
+  ]
+}
+
+{{
+  $global.cartId = response.parsedBody.id;
+
+  const assert = require('assert');
+  test("cart created with products", () => {
+    assert.equal(response.statusCode, 201);
+    assert.ok(response.parsedBody.products.length > 0);
+  });
+}}
+
+### Get User Carts
+# @ref login
+GET {{host}}/carts/user/{{userId}}
+Authorization: Bearer {{accessToken}}
+
+###
+# @name createPost
+# @ref login
+POST {{host}}/posts/add
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "Post created at {{$isoTimestamp}}",
+  "body": "Request ID: {{$uuid}}",
+  "userId": {{userId}},
+  "tags": ["test", "httpyac"]
+}
+
+{{
+  $global.postId = response.parsedBody.id;
+}}
+
+### Get Post Comments
+# @ref createPost
+GET {{host}}/posts/{{postId}}/comments
+Accept: application/json
+
+### Create Todo with dynamic timestamp
+# @ref login
+POST {{host}}/todos/add
+Content-Type: application/json
+
+{
+  "todo": "Created at {{$isoTimestamp}}",
+  "completed": false,
+  "userId": {{userId}}
+}
+
+{{
+  $global.todoId = response.parsedBody.id;
+}}
+
+### Update Todo
+# @ref login
+PUT {{host}}/todos/{{todoId}}
+Content-Type: application/json
+
+{
+  "completed": true
+}
+
+{{
+  const assert = require('assert');
+  test("todo marked completed", () => {
+    assert.equal(response.parsedBody.completed, true);
+  });
+}}
+
+### Delete Todo
+DELETE {{host}}/todos/{{todoId}}
+
+{{
+  const assert = require('assert');
+  test("todo deleted", () => {
+    assert.equal(response.parsedBody.isDeleted, true);
+  });
+}}
+
+### List Users (with pagination)
+GET {{host}}/users?limit=3&skip=0&select=firstName,lastName,email
+
+### Search Users
+GET {{host}}/users/search?q=John
+
+### Get Product Categories
+GET {{host}}/products/category-list

@@ -1,0 +1,151 @@
+### Login
+POST https://dummyjson.com/auth/login
+Content-Type: application/json
+
+{
+  "username": "emilys",
+  "password": "emilyspass"
+}
+
+> {%
+  client.global.set("accessToken", response.body.accessToken);
+  client.global.set("refreshToken", response.body.refreshToken);
+  client.global.set("userId", response.body.id);
+
+  client.test("Login successful", function() {
+    client.assert(response.status === 200, "Status is not 200");
+    client.assert(response.body.accessToken, "No access token in response");
+  });
+%}
+
+### Get Current User (uses token from Login)
+GET https://dummyjson.com/auth/me
+Authorization: Bearer {{accessToken}}
+
+> {%
+  client.test("User profile loaded", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.username === "emilys");
+  });
+%}
+
+### Refresh Token
+POST https://dummyjson.com/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}",
+  "expiresInMins": 30
+}
+
+> {%
+  client.global.set("accessToken", response.body.accessToken);
+  client.global.set("refreshToken", response.body.refreshToken);
+%}
+
+### Search Products
+GET https://dummyjson.com/products/search?q=phone&limit=5
+Accept: application/json
+
+> {%
+  client.global.set("productId", response.body.products[0].id);
+  client.global.set("productTitle", response.body.products[0].title);
+%}
+
+### Get Product Details (uses id from Search)
+GET https://dummyjson.com/products/{{productId}}
+Accept: application/json
+
+> {%
+  client.test("Product found", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.id == client.global.get("productId"));
+  });
+%}
+
+### Add Product to Cart
+POST https://dummyjson.com/carts/add
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "userId": {{userId}},
+  "products": [
+    {
+      "id": {{productId}},
+      "quantity": 2
+    }
+  ]
+}
+
+> {%
+  client.global.set("cartId", response.body.id);
+
+  client.test("Cart created", function() {
+    client.assert(response.status === 201);
+    client.assert(response.body.products.length > 0, "Cart is empty");
+  });
+%}
+
+### Get User's Carts
+GET https://dummyjson.com/carts/user/{{userId}}
+Authorization: Bearer {{accessToken}}
+
+### Create a Post
+POST https://dummyjson.com/posts/add
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "Test Post from HTTP Client",
+  "body": "This post was created via .http file",
+  "userId": {{userId}},
+  "tags": ["test", "http-client"]
+}
+
+> {%
+  client.global.set("postId", response.body.id);
+%}
+
+### Get Post Comments (uses postId from Create)
+GET https://dummyjson.com/posts/{{postId}}/comments
+Accept: application/json
+
+### Create a Todo
+POST https://dummyjson.com/todos/add
+Content-Type: application/json
+
+{
+  "todo": "Review HTTP client examples",
+  "completed": false,
+  "userId": {{userId}}
+}
+
+> {%
+  client.global.set("todoId", response.body.id);
+%}
+
+### Update Todo (mark as completed)
+PUT https://dummyjson.com/todos/{{todoId}}
+Content-Type: application/json
+
+{
+  "completed": true
+}
+
+> {%
+  client.test("Todo updated", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.completed === true);
+  });
+%}
+
+### Delete Todo
+DELETE https://dummyjson.com/todos/{{todoId}}
+
+> {%
+  client.test("Todo deleted", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.isDeleted === true);
+  });
+%}
