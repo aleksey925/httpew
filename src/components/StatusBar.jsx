@@ -26,7 +26,7 @@ export default function StatusBar({ filePath, activeEnvironment, lastUpdated, sc
 
   return (
     <Box borderStyle="single" borderColor="gray" paddingX={1}>
-      <Text color="cyan" bold>
+      <Text color="whiteBright" bold>
         [{envLabel}]
       </Text>
       <Text> {fileName} </Text>

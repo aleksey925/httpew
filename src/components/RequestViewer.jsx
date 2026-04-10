@@ -15,7 +15,7 @@ function highlightHttp(content, activeStartLine, activeEndLine) {
       return {
         key: i,
         text: line,
-        color: isInActiveRegion ? 'yellowBright' : 'cyan',
+        color: isInActiveRegion ? 'whiteBright' : 'gray',
         bold: true,
         inverse: isInActiveRegion,
       };
@@ -37,7 +37,7 @@ function highlightHttp(content, activeStartLine, activeEndLine) {
       return {
         key: i,
         parts: [
-          { text: headerMatch[1], color: 'blue' },
+          { text: headerMatch[1], color: 'magenta' },
           { text: ': ' + headerMatch[2], color: 'white' },
         ],
       };
@@ -46,6 +46,18 @@ function highlightHttp(content, activeStartLine, activeEndLine) {
     if (line.includes('{{')) {
       const highlighted = line.replace(/\{\{(\w+)\}\}/g, chalk.magenta.bold('{{$1}}'));
       return { key: i, rawText: highlighted };
+    }
+    // httpyac metadata (# @name, # @ref, etc.)
+    const metaMatch = line.match(/^#\s*(@\w+)\s*(.*)/);
+    if (metaMatch) {
+      return {
+        key: i,
+        parts: [
+          { text: '# ', color: 'gray' },
+          { text: metaMatch[1], color: 'yellow', bold: true },
+          { text: metaMatch[2] ? ' ' + metaMatch[2] : '', color: 'white' },
+        ],
+      };
     }
     // comment
     if (line.startsWith('#') || line.startsWith('//')) {
@@ -278,9 +290,9 @@ export default function RequestViewer({
   const isSearching = searchMode && searchQuery;
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'cyan' : 'gray'} flexGrow={1}>
+    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={1}>
       <Box paddingX={1}>
-        <Text bold color={isFocused ? 'cyan' : 'white'}>
+        <Text bold color={isFocused ? 'whiteBright' : 'white'}>
           Source
         </Text>
         {copied && <Text color="green"> ✓ copied</Text>}

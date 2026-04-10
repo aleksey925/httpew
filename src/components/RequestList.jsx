@@ -30,7 +30,7 @@ function methodColor(method) {
     PUT: 'blue',
     PATCH: 'magenta',
     DELETE: 'red',
-    HEAD: 'cyan',
+    HEAD: 'white',
     OPTIONS: 'gray',
   };
   return colors[method] || 'white';
@@ -150,9 +150,9 @@ export default function RequestList({
   const panelWidth = Math.floor((process.stdout.columns || 80) * widthFraction) - 4;
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'cyan' : 'gray'} flexGrow={width ? 0 : 1} width={width}>
+    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={width ? 0 : 1} width={width}>
       <Box paddingX={1}>
-        <Text bold color={isFocused ? 'cyan' : 'white'}>
+        <Text bold color={isFocused ? 'whiteBright' : 'white'}>
           Requests
         </Text>
         {copied && <Text color="green"> ✓ copied</Text>}
@@ -173,13 +173,13 @@ export default function RequestList({
 
           return (
             <Text key={req.id} wrap="truncate">
-              <Text color={isActive && isFocused ? 'cyan' : undefined}>{cursor}</Text>
+              <Text color={isActive && isFocused ? 'whiteBright' : undefined}>{cursor}</Text>
               <Text color={iconColor}>{icon}</Text>
               <Text> </Text>
-              <Text color={methodColor(req.method)} bold>
+              <Text color={methodColor(req.method)} bold={isActive}>
                 {req.method.padEnd(6)}
               </Text>
-              <Text color={isActive ? 'white' : 'gray'}> {displayName}</Text>
+              <Text color={isActive ? 'whiteBright' : 'white'} bold={isActive}> {displayName}</Text>
             </Text>
           );
         })}

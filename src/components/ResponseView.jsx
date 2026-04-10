@@ -56,7 +56,7 @@ function HeadersTab({ result }) {
     <Box flexDirection="column" overflow="hidden">
       {Object.entries(result.headers).map(([key, value]) => (
         <Box key={key} flexShrink={0}>
-          <Text color="blue" bold>
+          <Text color="magenta" bold>
             {key.padEnd(25)}
           </Text>
           <Text wrap="truncate">{String(value)}</Text>
@@ -240,17 +240,17 @@ export default function ResponseView({
     : '';
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'cyan' : 'gray'} width={width} flexGrow={width ? 0 : 1}>
+    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} width={width} flexGrow={width ? 0 : 1}>
       <Box paddingX={1} justifyContent="space-between">
         <Box>
           {tabs.map((tab, i) => (
             <Text key={tab}>
               {i > 0 && <Text> </Text>}
               <Text
-                color={activeTab === i ? 'cyan' : 'gray'}
+                color={activeTab === i ? 'whiteBright' : 'gray'}
                 bold={activeTab === i}
               >
-                {tab}
+                {activeTab === i ? '· ' : '  '}{tab}
               </Text>
             </Text>
           ))}

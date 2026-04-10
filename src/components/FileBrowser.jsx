@@ -103,7 +103,7 @@ export default function FileBrowser({ onSelect, onCancel, initialPath }) {
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Text bold color="cyan">
+      <Text bold color="whiteBright">
         {cwd}
       </Text>
       <Text dimColor>

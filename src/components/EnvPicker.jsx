@@ -36,11 +36,11 @@ export default function EnvPicker({ environments, activeEnvironment, onSelect, o
       <Box
         flexDirection="column"
         borderStyle="round"
-        borderColor="cyan"
+        borderColor="whiteBright"
         paddingX={2}
         paddingY={1}
       >
-        <Text bold color="cyan">
+        <Text bold color="whiteBright">
           Select environment
         </Text>
         <Text dimColor>{'─'.repeat(22)}</Text>

@@ -78,7 +78,7 @@ export default function HelpOverlay({ onClose }) {
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Text bold color="cyan">
+      <Text bold color="whiteBright">
         httpew — Keyboard Shortcuts
       </Text>
       <Text dimColor>{'─'.repeat(40)}</Text>
