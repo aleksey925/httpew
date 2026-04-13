@@ -4,8 +4,8 @@ Terminal HTTP client for [JetBrains HTTP Client](https://www.jetbrains.com/help/
 Powered by [httpyac](https://httpyac.github.io/), runs in any terminal without an IDE.
 
 - [Why httpew?](#why-httpew)
-- [Compatibility](#compatibility)
 - [Installation](#installation)
+- [Compatibility](#compatibility)
 - [How to Use](#how-to-use)
   - [Environment Files](#environment-files)
 
@@ -14,6 +14,33 @@ Powered by [httpyac](https://httpyac.github.io/), runs in any terminal without a
 - **Compatibility** — reuse your existing `.http` files from IntelliJ IDEA, WebStorm, GoLand, and other JetBrains IDEs without modification. Built on [httpyac](https://httpyac.github.io/), so it also supports everything httpyac can do: variables, scripting, request dependencies, GraphQL, WebSocket, gRPC, and more
 - **Works outside the IDE** — browse, edit, and execute requests in any terminal: on a remote server, inside Docker, or on a machine without JetBrains installed
 - **Interactive UI** — three-panel layout (request list, source, response), JSON highlighting, search, copy as curl, save responses, environment switching
+
+## Installation
+
+Download the latest release from [releases](https://github.com/aleksey925/httpew/releases) and install it manually
+or you can run the following commands to install the latest version to `~/.local/bin`:
+
+```bash
+VERSION=$(curl -sL -o /dev/null -w '%{url_effective}' https://github.com/aleksey925/httpew/releases/latest | sed 's/.*\/v//')
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/')
+curl -#L "https://github.com/aleksey925/httpew/releases/download/v${VERSION}/httpew-${VERSION}-${OS}-${ARCH}.tar.gz" | tar xz -C ~/.local/bin "httpew-${OS}-${ARCH}"
+mv ~/.local/bin/httpew-${OS}-${ARCH} ~/.local/bin/httpew
+```
+
+Also, you can build it from source (requires [Bun](https://bun.sh)):
+
+```bash
+git clone https://github.com/aleksey925/httpew.git
+cd httpew
+make install  # compiles and copies to ~/.local/bin
+```
+
+Make sure `~/.local/bin` is in your PATH:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
 
 ## Compatibility
 
@@ -61,32 +88,6 @@ In addition to JetBrains format, httpyac supports its own syntax for response ha
 | Assertions       | `client.test("name", fn)`                                 | `const assert = require('assert')`                |
 
 See [httpyac documentation](https://httpyac.github.io/) for full details.
-
-## Installation
-
-Download the latest release from [releases](https://github.com/aleksey925/httpew/releases) and install it manually
-or you can run the following commands to install the latest version to `~/.local/bin`:
-
-```bash
-VERSION=$(curl -sL -o /dev/null -w '%{url_effective}' https://github.com/aleksey925/httpew/releases/latest | sed 's/.*\/v//')
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/')
-curl -#L "https://github.com/aleksey925/httpew/releases/download/v${VERSION}/httpew-${VERSION}-${OS}-${ARCH}.tar.gz" | tar xz -C ~/.local/bin --transform 's/httpew-.*/httpew/'
-```
-
-Also, you can build it from source (requires [Bun](https://bun.sh)):
-
-```bash
-git clone https://github.com/aleksey925/httpew.git
-cd httpew
-make install  # compiles and copies to ~/.local/bin
-```
-
-Make sure `~/.local/bin` is in your PATH:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
 
 ## How to Use
 
