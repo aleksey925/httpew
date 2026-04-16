@@ -1,4 +1,6 @@
-VERSION ?= $(shell git rev-parse --short HEAD)
+PKG_VERSION = $(shell bun -e "console.log(require('./package.json').version)")
+COMMIT_HASH = $(shell git rev-parse --short HEAD)
+VERSION ?= $(PKG_VERSION) ($(COMMIT_HASH))
 TARGET ?=
 
 DIST_DIR = dist
