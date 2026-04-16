@@ -140,6 +140,21 @@ Content-Type: application/json
   });
 %}
 
+### Update Todo (mark as completed)
+PATCH https://dummyjson.com/todos/{{todoId}}
+Content-Type: application/json
+
+{
+  "completed": true
+}
+
+> {%
+  client.test("Todo updated", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.completed === true);
+  });
+%}
+
 ### Delete Todo
 DELETE https://dummyjson.com/todos/{{todoId}}
 
