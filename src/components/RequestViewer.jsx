@@ -290,7 +290,7 @@ export default function RequestViewer({
   const isSearching = searchMode && searchQuery;
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={1}>
+    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={1} flexBasis={0}>
       <Box paddingX={1}>
         <Text bold color={isFocused ? 'whiteBright' : 'white'}>
           Source

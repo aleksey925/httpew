@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { toCurl } from '../utils/curlExport.js';
 import { SPINNER_FRAMES } from '../utils/highlight.js';
@@ -55,6 +55,10 @@ export default function RequestList({
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef(null);
+  const [scrollOffset, setScrollOffset] = useState(0);
+
+  // border (2) + header (1) + search bar (1 when active)
+  const visibleHeight = (process.stdout.rows || 40) - (searchMode ? 4 : 3);
 
   useEffect(() => () => clearTimeout(copiedTimerRef.current), []);
 
@@ -63,12 +67,31 @@ export default function RequestList({
     setSearchActive(active);
   };
 
-  const filtered = searchMode && searchQuery
-    ? requests.filter((r) =>
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.url.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : requests;
+  const filtered = useMemo(() =>
+    searchMode && searchQuery
+      ? requests.filter((r) =>
+          r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.url.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : requests,
+    [requests, searchMode, searchQuery],
+  );
+
+  // keep active item in view when it changes externally
+  useEffect(() => {
+    const idx = filtered.findIndex((r) => r.id === activeRequestId);
+    if (idx === -1) return;
+    if (idx < scrollOffset) {
+      setScrollOffset(idx);
+    } else if (idx >= scrollOffset + visibleHeight) {
+      setScrollOffset(idx - visibleHeight + 1);
+    }
+  }, [activeRequestId, filtered]);
+
+  // reset scroll when search changes
+  useEffect(() => {
+    setScrollOffset(0);
+  }, [searchQuery]);
 
   useInput(
     (input, key) => {
@@ -107,13 +130,23 @@ export default function RequestList({
 
       if (key.upArrow) {
         const idx = filtered.findIndex((r) => r.id === activeRequestId);
-        if (idx > 0) setActiveRequestId(filtered[idx - 1].id);
+        if (idx > 0) {
+          setActiveRequestId(filtered[idx - 1].id);
+          if (idx - 1 < scrollOffset) {
+            setScrollOffset(idx - 1);
+          }
+        }
         return;
       }
 
       if (key.downArrow) {
         const idx = filtered.findIndex((r) => r.id === activeRequestId);
-        if (idx < filtered.length - 1) setActiveRequestId(filtered[idx + 1].id);
+        if (idx < filtered.length - 1) {
+          setActiveRequestId(filtered[idx + 1].id);
+          if (idx + 1 >= scrollOffset + visibleHeight) {
+            setScrollOffset(idx + 1 - visibleHeight + 1);
+          }
+        }
         return;
       }
 
@@ -151,15 +184,22 @@ export default function RequestList({
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={width ? 0 : 1} width={width}>
-      <Box paddingX={1}>
-        <Text bold color={isFocused ? 'whiteBright' : 'white'}>
-          Requests
-        </Text>
-        {copied && <Text color="green"> ✓ copied</Text>}
+      <Box paddingX={1} justifyContent="space-between">
+        <Box>
+          <Text bold color={isFocused ? 'whiteBright' : 'white'}>
+            Requests
+          </Text>
+          {copied && <Text color="green"> ✓ copied</Text>}
+        </Box>
+        {filtered.length > visibleHeight && (
+          <Text dimColor>
+            {scrollOffset + 1}-{Math.min(scrollOffset + visibleHeight, filtered.length)}/{filtered.length}
+          </Text>
+        )}
       </Box>
-      <Box flexDirection="column" paddingX={1} flexGrow={1}>
+      <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
         {filtered.length === 0 && <Text dimColor>No requests found</Text>}
-        {filtered.map((req) => {
+        {filtered.slice(scrollOffset, scrollOffset + visibleHeight).map((req) => {
           const isActive = req.id === activeRequestId;
           const result = results.get(req.id);
           const running = isRunning(req.id);
