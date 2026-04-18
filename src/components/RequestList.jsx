@@ -128,7 +128,7 @@ export default function RequestList({
         return;
       }
 
-      if (key.upArrow) {
+      if (key.upArrow || input === 'k') {
         const idx = filtered.findIndex((r) => r.id === activeRequestId);
         if (idx > 0) {
           setActiveRequestId(filtered[idx - 1].id);
@@ -139,7 +139,7 @@ export default function RequestList({
         return;
       }
 
-      if (key.downArrow) {
+      if (key.downArrow || input === 'j') {
         const idx = filtered.findIndex((r) => r.id === activeRequestId);
         if (idx < filtered.length - 1) {
           setActiveRequestId(filtered[idx + 1].id);

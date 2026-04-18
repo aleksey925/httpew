@@ -18,7 +18,7 @@ const SECTIONS = [
   {
     title: 'Request List (left)',
     keys: [
-      ['↑↓', 'navigate requests'],
+      ['↑↓ / j/k', 'navigate requests'],
       ['Enter', 'execute request'],
       ['i', 'open in $EDITOR'],
       ['c', 'copy as curl'],
@@ -28,8 +28,8 @@ const SECTIONS = [
   {
     title: 'Source (center)',
     keys: [
-      ['↑↓', 'scroll line by line'],
-      ['J / K', 'jump between requests'],
+      ['↑↓ / j/k', 'scroll line by line'],
+      ['[ / ]', 'jump between requests'],
       ['Enter', 'execute request'],
       ['i', 'open in $EDITOR'],
       ['c', 'copy as curl'],
@@ -39,9 +39,9 @@ const SECTIONS = [
   {
     title: 'Response (right)',
     keys: [
-      ['1/2/3', 'Body / Headers / Info tab'],
+      ['[ / ]', 'switch tab'],
       ['p', 'toggle Pretty / Raw'],
-      ['↑↓', 'scroll'],
+      ['↑↓ / j/k', 'scroll'],
       ['c', 'copy body'],
       ['s', 'save body to file'],
       ['/', 'search body'],

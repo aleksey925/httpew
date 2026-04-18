@@ -209,7 +209,7 @@ export default function RequestViewer({
         return;
       }
 
-      if ((key.shift && key.upArrow) || input === 'K') {
+      if (input === '[') {
         const currentIdx = requests.findIndex((r) => r.id === activeRequestId);
         if (currentIdx > 0) {
           const prevReq = requests[currentIdx - 1];
@@ -223,7 +223,7 @@ export default function RequestViewer({
         return;
       }
 
-      if ((key.shift && key.downArrow) || input === 'J') {
+      if (input === ']') {
         const currentIdx = requests.findIndex((r) => r.id === activeRequestId);
         if (currentIdx < requests.length - 1) {
           const nextReq = requests[currentIdx + 1];
@@ -237,7 +237,7 @@ export default function RequestViewer({
         return;
       }
 
-      if (key.upArrow) {
+      if (key.upArrow || input === 'k') {
         const next = Math.max(0, scrollOffsetRef.current - 1);
         const req = getRequestAtLine(next);
         if (req && req.id !== activeRequestId) {
@@ -248,7 +248,7 @@ export default function RequestViewer({
         return;
       }
 
-      if (key.downArrow) {
+      if (key.downArrow || input === 'j') {
         const next = Math.min(lines.length - 1, scrollOffsetRef.current + 1);
         const req = getRequestAtLine(next);
         if (req && req.id !== activeRequestId) {

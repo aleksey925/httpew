@@ -194,12 +194,12 @@ export default function ResponseView({
         return;
       }
 
-      if (key.upArrow) {
+      if (key.upArrow || input === 'k') {
         setScrollOffset((prev) => Math.max(0, prev - 1));
         return;
       }
 
-      if (key.downArrow) {
+      if (key.downArrow || input === 'j') {
         setScrollOffset((prev) => Math.min(maxScroll, prev + 1));
         return;
       }
