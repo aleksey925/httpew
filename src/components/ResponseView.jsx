@@ -49,12 +49,15 @@ function BodyTab({ result, prettyMode, scrollOffset, visibleHeight, searchQuery 
   );
 }
 
-function HeadersTab({ result }) {
+function HeadersTab({ result, scrollOffset, visibleHeight }) {
   if (!result?.headers) return <Text dimColor>No headers</Text>;
+
+  const entries = Object.entries(result.headers);
+  const visible = entries.slice(scrollOffset, scrollOffset + visibleHeight);
 
   return (
     <Box flexDirection="column" overflow="hidden">
-      {Object.entries(result.headers).map(([key, value]) => (
+      {visible.map(([key, value]) => (
         <Box key={key} flexShrink={0}>
           <Text color="magenta" bold>
             {key.padEnd(25)}
@@ -157,7 +160,9 @@ export default function ResponseView({
   const tabs = ['Body', 'Headers', 'Info'];
 
   const bodyText = getBodyText(result, prettyMode);
-  const totalLines = bodyText ? bodyText.split('\n').length : 0;
+  const bodyLines = bodyText ? bodyText.split('\n').length : 0;
+  const headerCount = result?.headers ? Object.keys(result.headers).length : 0;
+  const totalLines = activeTab === 0 ? bodyLines : activeTab === 1 ? headerCount : 0;
   const maxScroll = Math.max(0, totalLines - visibleHeight);
 
 
@@ -185,8 +190,8 @@ export default function ResponseView({
         return;
       }
 
-      if (input === ']') { setActiveTab((prev) => (prev + 1) % tabs.length); return; }
-      if (input === '[') { setActiveTab((prev) => (prev - 1 + tabs.length) % tabs.length); return; }
+      if (input === ']') { setActiveTab((prev) => (prev + 1) % tabs.length); setScrollOffset(0); return; }
+      if (input === '[') { setActiveTab((prev) => (prev - 1 + tabs.length) % tabs.length); setScrollOffset(0); return; }
 
       if (input === 'p') {
         setPrettyMode((prev) => !prev);
@@ -286,7 +291,7 @@ export default function ResponseView({
             searchQuery={searchMode ? searchQuery : ''}
           />
         )}
-        {activeTab === 1 && <HeadersTab result={result} />}
+        {activeTab === 1 && <HeadersTab result={result} scrollOffset={scrollOffset} visibleHeight={visibleHeight} />}
         {activeTab === 2 && <InfoTab result={result} />}
       </Box>
       {searchMode && (() => {
