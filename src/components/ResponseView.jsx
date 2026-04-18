@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { saveBody } from '../utils/autoSave.js';
+import { saveResponseContent, getBodyExtension } from '../utils/autoSave.js';
 import { highlightText, highlightJsonLine, countMatches, SPINNER_FRAMES } from '../utils/highlight.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
 
@@ -18,6 +18,39 @@ function getBodyText(result, prettyMode) {
   const parsed = tryParseJson(result);
   if (prettyMode && parsed) return JSON.stringify(parsed, null, 2);
   return result.body;
+}
+
+function formatHeadersText(headers) {
+  if (!headers) return '';
+  return Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\n');
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return `${bytes}b`;
+  return `${(bytes / 1024).toFixed(1)}kb`;
+}
+
+function formatInfoText(result) {
+  if (!result) return '';
+  const lines = [
+    `Status: ${result.statusCode ?? ''} ${result.statusText ?? ''}`.trim(),
+    `Time: ${result.time ? `${Math.round(result.time)}ms` : '—'}`,
+    `Size: ${formatSize(result.size)}`,
+    `URL: ${result.url || '—'}`,
+    `Timestamp: ${result.timestamp ? result.timestamp.toLocaleTimeString() : '—'}`,
+  ];
+  return lines.join('\n');
+}
+
+function getTabContent(result, activeTab, prettyMode) {
+  if (activeTab === 1) {
+    return { text: formatHeadersText(result?.headers), ext: '.txt', suffix: '.headers' };
+  }
+  if (activeTab === 2) {
+    return { text: formatInfoText(result), ext: '.txt', suffix: '.info' };
+  }
+  return { text: getBodyText(result, prettyMode), ext: getBodyExtension(result?.headers), suffix: '' };
 }
 
 function BodyTab({ result, prettyMode, scrollOffset, visibleHeight, searchQuery }) {
@@ -54,15 +87,22 @@ function HeadersTab({ result, scrollOffset, visibleHeight }) {
 
   const entries = Object.entries(result.headers);
   const visible = entries.slice(scrollOffset, scrollOffset + visibleHeight);
+  // adaptive key column: fit longest header name, clamped so it never eats all horizontal space
+  const maxKeyLen = entries.reduce((max, [k]) => Math.max(max, k.length), 0);
+  const keyWidth = Math.min(Math.max(maxKeyLen, 12), 40);
 
   return (
     <Box flexDirection="column" overflow="hidden">
       {visible.map(([key, value]) => (
         <Box key={key} flexShrink={0}>
-          <Text color="magenta" bold>
-            {key.padEnd(25)}
-          </Text>
-          <Text wrap="truncate">{String(value)}</Text>
+          <Box width={keyWidth} flexShrink={0} marginRight={1}>
+            <Text color="magenta" bold wrap="truncate">
+              {key}
+            </Text>
+          </Box>
+          <Box flexGrow={1}>
+            <Text wrap="truncate">{String(value)}</Text>
+          </Box>
         </Box>
       ))}
     </Box>
@@ -74,36 +114,26 @@ function InfoTab({ result }) {
 
   const statusColor = result.statusCode < 400 ? 'green' : 'red';
 
-  function formatSize(bytes) {
-    if (!bytes) return '—';
-    if (bytes < 1024) return `${bytes}b`;
-    return `${(bytes / 1024).toFixed(1)}kb`;
-  }
+  const rows = [
+    { label: 'Status', value: `${result.statusCode} ${result.statusText}`, color: statusColor },
+    { label: 'Time', value: result.time ? `${Math.round(result.time)}ms` : '—' },
+    { label: 'Size', value: formatSize(result.size) },
+    { label: 'URL', value: result.url || '—', wrap: 'wrap' },
+    { label: 'Timestamp', value: result.timestamp ? result.timestamp.toLocaleTimeString() : '—' },
+  ];
 
   return (
     <Box flexDirection="column">
-      <Box>
-        <Text bold>{'Status'.padEnd(14)}</Text>
-        <Text color={statusColor}>
-          {result.statusCode} {result.statusText}
-        </Text>
-      </Box>
-      <Box>
-        <Text bold>{'Time'.padEnd(14)}</Text>
-        <Text>{result.time ? `${Math.round(result.time)}ms` : '—'}</Text>
-      </Box>
-      <Box>
-        <Text bold>{'Size'.padEnd(14)}</Text>
-        <Text>{formatSize(result.size)}</Text>
-      </Box>
-      <Box>
-        <Text bold>{'URL'.padEnd(14)}</Text>
-        <Text>{result.url || '—'}</Text>
-      </Box>
-      <Box>
-        <Text bold>{'Timestamp'.padEnd(14)}</Text>
-        <Text>{result.timestamp ? result.timestamp.toLocaleTimeString() : '—'}</Text>
-      </Box>
+      {rows.map(({ label, value, color, wrap = 'truncate' }) => (
+        <Box key={label} flexShrink={0}>
+          <Box width={12} flexShrink={0} marginRight={1}>
+            <Text bold>{label}</Text>
+          </Box>
+          <Box flexGrow={1}>
+            <Text color={color} wrap={wrap}>{value}</Text>
+          </Box>
+        </Box>
+      ))}
     </Box>
   );
 }
@@ -210,9 +240,10 @@ export default function ResponseView({
       }
 
       if (input === 'c') {
-        if (result?.body) {
+        const { text } = getTabContent(result, activeTab, prettyMode);
+        if (text) {
           import('clipboardy').then((clip) => {
-            clip.default.writeSync(result.body);
+            clip.default.writeSync(text);
             setCopied(true);
             copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
           });
@@ -221,8 +252,9 @@ export default function ResponseView({
       }
 
       if (input === 's') {
-        if (result?.body && filePath && activeRequest) {
-          const outputPath = saveBody(filePath, activeRequest, result);
+        if (filePath && activeRequest) {
+          const content = getTabContent(result, activeTab, prettyMode);
+          const outputPath = saveResponseContent(filePath, activeRequest, content);
           if (outputPath) {
             setSaved(outputPath);
             savedTimerRef.current = setTimeout(() => setSaved(null), 3000);
