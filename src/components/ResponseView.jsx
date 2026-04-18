@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { saveResponseContent, getBodyExtension } from '../utils/autoSave.js';
 import { highlightText, highlightJsonLine, countMatches, SPINNER_FRAMES } from '../utils/highlight.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 function tryParseJson(result) {
   if (!result) return null;
@@ -22,7 +23,16 @@ function getBodyText(result, prettyMode) {
 
 function formatHeadersText(headers) {
   if (!headers) return '';
-  return Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\n');
+  return Object.entries(headers)
+    .flatMap(([k, v]) => (Array.isArray(v) ? v.map((item) => `${k}: ${item}`) : [`${k}: ${v}`]))
+    .join('\n');
+}
+
+// expand array-valued headers (e.g. set-cookie) into one row per value
+function expandHeaderEntries(headers) {
+  return Object.entries(headers).flatMap(([k, v]) =>
+    Array.isArray(v) ? v.map((item) => [k, item]) : [[k, v]],
+  );
 }
 
 function formatSize(bytes) {
@@ -82,10 +92,9 @@ function BodyTab({ result, prettyMode, scrollOffset, visibleHeight, searchQuery 
   );
 }
 
-function HeadersTab({ result, scrollOffset, visibleHeight }) {
-  if (!result?.headers) return <Text dimColor>No headers</Text>;
+function HeadersTab({ entries, scrollOffset, visibleHeight }) {
+  if (entries.length === 0) return <Text dimColor>No headers</Text>;
 
-  const entries = Object.entries(result.headers);
   const visible = entries.slice(scrollOffset, scrollOffset + visibleHeight);
   // adaptive key column: fit longest header name, clamped so it never eats all horizontal space
   const maxKeyLen = entries.reduce((max, [k]) => Math.max(max, k.length), 0);
@@ -93,8 +102,8 @@ function HeadersTab({ result, scrollOffset, visibleHeight }) {
 
   return (
     <Box flexDirection="column" overflow="hidden">
-      {visible.map(([key, value]) => (
-        <Box key={key} flexShrink={0}>
+      {visible.map(([key, value], i) => (
+        <Box key={`${key}-${scrollOffset + i}`} flexShrink={0}>
           <Box width={keyWidth} flexShrink={0} marginRight={1}>
             <Text color="magenta" bold wrap="truncate">
               {key}
@@ -186,13 +195,17 @@ export default function ResponseView({
     setSearchActive(active);
   };
 
-  const visibleHeight = process.stdout.rows ? process.stdout.rows - 8 : 25;
+  const { rows: termRows } = useTerminalSize();
+  const visibleHeight = Math.max(1, termRows - 8);
   const tabs = ['Body', 'Headers', 'Info'];
 
   const bodyText = getBodyText(result, prettyMode);
   const bodyLines = bodyText ? bodyText.split('\n').length : 0;
-  const headerCount = result?.headers ? Object.keys(result.headers).length : 0;
-  const totalLines = activeTab === 0 ? bodyLines : activeTab === 1 ? headerCount : 0;
+  const headerEntries = useMemo(
+    () => (result?.headers ? expandHeaderEntries(result.headers) : []),
+    [result?.headers],
+  );
+  const totalLines = activeTab === 0 ? bodyLines : activeTab === 1 ? headerEntries.length : 0;
   const maxScroll = Math.max(0, totalLines - visibleHeight);
 
 
@@ -323,7 +336,7 @@ export default function ResponseView({
             searchQuery={searchMode ? searchQuery : ''}
           />
         )}
-        {activeTab === 1 && <HeadersTab result={result} scrollOffset={scrollOffset} visibleHeight={visibleHeight} />}
+        {activeTab === 1 && <HeadersTab entries={headerEntries} scrollOffset={scrollOffset} visibleHeight={visibleHeight} />}
         {activeTab === 2 && <InfoTab result={result} />}
       </Box>
       {searchMode && (() => {

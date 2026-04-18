@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { toCurl } from '../utils/curlExport.js';
 import { highlightText } from '../utils/highlight.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 function highlightHttp(content, activeStartLine, activeEndLine) {
   const lines = content.split('\n');
@@ -129,8 +130,9 @@ export default function RequestViewer({
   }
 
   const lines = highlightHttp(rawContent || '', activeNameLine, activeEndLine);
+  const { rows: termRows } = useTerminalSize();
   // panel chrome: border(2) + header(1) + footer(1) + statusbar(3) + search(1 if active)
-  const visibleHeight = process.stdout.rows ? process.stdout.rows - 8 : 20;
+  const visibleHeight = Math.max(1, termRows - 8);
 
   // lines containing search matches (for jumping between them)
   const searchMatchLines = (searchMode && searchQuery)

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 const SECTIONS = [
   {
@@ -92,8 +93,7 @@ function buildLines(sections, colCount) {
 export default function HelpOverlay({ onClose }) {
   const [scrollOffset, setScrollOffset] = useState(0);
 
-  const termCols = process.stdout.columns || 80;
-  const termRows = process.stdout.rows || 24;
+  const { rows: termRows, columns: termCols } = useTerminalSize();
   const colCount = Math.max(1, Math.floor(termCols / COL_WIDTH));
   const lines = buildLines(SECTIONS, colCount);
 

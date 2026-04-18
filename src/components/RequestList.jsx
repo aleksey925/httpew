@@ -3,6 +3,7 @@ import { Box, Text, useInput } from 'ink';
 import { toCurl } from '../utils/curlExport.js';
 import { SPINNER_FRAMES } from '../utils/highlight.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 function useSpinner(hasRunning) {
   const [frame, setFrame] = useState(0);
@@ -56,9 +57,10 @@ export default function RequestList({
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef(null);
   const [scrollOffset, setScrollOffset] = useState(0);
+  const { rows: termRows, columns: termCols } = useTerminalSize();
 
   // status bar (3: content + top/bottom borders) + panel borders (2) + header (1) + search bar (2 when active: borderTop + content)
-  const visibleHeight = Math.max(1, (process.stdout.rows || 40) - (searchMode ? 8 : 6));
+  const visibleHeight = Math.max(1, termRows - (searchMode ? 8 : 6));
 
   useEffect(() => () => clearTimeout(copiedTimerRef.current), []);
 
@@ -180,7 +182,7 @@ export default function RequestList({
   const widthFraction = typeof width === 'string' && width.endsWith('%')
     ? parseInt(width) / 100
     : 0.25;
-  const panelWidth = Math.floor((process.stdout.columns || 80) * widthFraction) - 4;
+  const panelWidth = Math.floor(termCols * widthFraction) - 4;
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={width ? 0 : 1} width={width}>

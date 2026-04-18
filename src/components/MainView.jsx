@@ -9,6 +9,7 @@ import { useHttpYac } from '../hooks/useHttpYac.js';
 import { useActiveRequest } from '../hooks/useActiveRequest.js';
 import { useFocus } from '../hooks/useFocus.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 function getLayout(focusedPanel, screenMode) {
   if (screenMode === 'normal') {
@@ -88,9 +89,10 @@ export default function MainView({ filePath, fileWatcher, environments }) {
   });
 
   const layout = getLayout(focusedPanel, screenMode);
+  const { rows: termRows } = useTerminalSize();
 
   return (
-    <Box flexDirection="column" height={process.stdout.rows || 40}>
+    <Box flexDirection="column" height={termRows}>
       <Box flexGrow={1}>
         {!layout.hideLeft && (
           <RequestList
