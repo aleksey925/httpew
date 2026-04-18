@@ -57,8 +57,8 @@ export default function RequestList({
   const copiedTimerRef = useRef(null);
   const [scrollOffset, setScrollOffset] = useState(0);
 
-  // border (2) + header (1) + search bar (1 when active)
-  const visibleHeight = (process.stdout.rows || 40) - (searchMode ? 4 : 3);
+  // status bar (3: content + top/bottom borders) + panel borders (2) + header (1) + search bar (2 when active: borderTop + content)
+  const visibleHeight = Math.max(1, (process.stdout.rows || 40) - (searchMode ? 8 : 6));
 
   useEffect(() => () => clearTimeout(copiedTimerRef.current), []);
 
@@ -77,7 +77,7 @@ export default function RequestList({
     [requests, searchMode, searchQuery],
   );
 
-  // keep active item in view when it changes externally
+  // keep active item in view when it changes externally or when visible area shrinks (e.g. search toggled)
   useEffect(() => {
     const idx = filtered.findIndex((r) => r.id === activeRequestId);
     if (idx === -1) return;
@@ -86,7 +86,7 @@ export default function RequestList({
     } else if (idx >= scrollOffset + visibleHeight) {
       setScrollOffset(idx - visibleHeight + 1);
     }
-  }, [activeRequestId, filtered]);
+  }, [activeRequestId, filtered, visibleHeight]);
 
   // reset scroll when search changes
   useEffect(() => {
@@ -184,18 +184,11 @@ export default function RequestList({
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={width ? 0 : 1} width={width}>
-      <Box paddingX={1} justifyContent="space-between">
-        <Box>
-          <Text bold color={isFocused ? 'whiteBright' : 'white'}>
-            Requests
-          </Text>
-          {copied && <Text color="green"> ✓ copied</Text>}
-        </Box>
-        {filtered.length > visibleHeight && (
-          <Text dimColor>
-            {scrollOffset + 1}-{Math.min(scrollOffset + visibleHeight, filtered.length)}/{filtered.length}
-          </Text>
-        )}
+      <Box paddingX={1}>
+        <Text bold color={isFocused ? 'whiteBright' : 'white'}>
+          Requests
+        </Text>
+        {copied && <Text color="green"> ✓ copied</Text>}
       </Box>
       <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
         {filtered.length === 0 && <Text dimColor>No requests found</Text>}
