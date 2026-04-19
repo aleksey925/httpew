@@ -63,6 +63,25 @@ function getTabContent(result, activeTab, prettyMode) {
   return { text: getBodyText(result, prettyMode), ext: getBodyExtension(result?.headers), suffix: '' };
 }
 
+// strings that participate in search highlighting on the active tab
+function getSearchableFields(result, activeTab, prettyMode) {
+  if (activeTab === 1) {
+    if (!result?.headers) return [];
+    return expandHeaderEntries(result.headers).flatMap(([k, v]) => [k, String(v)]);
+  }
+  if (activeTab === 2) {
+    if (!result || result.status === 'idle') return [];
+    return [
+      `${result.statusCode ?? ''} ${result.statusText ?? ''}`.trim(),
+      result.time ? `${Math.round(result.time)}ms` : '—',
+      formatSize(result.size),
+      result.url || '—',
+      result.timestamp ? result.timestamp.toLocaleTimeString() : '—',
+    ];
+  }
+  return [getBodyText(result, prettyMode)];
+}
+
 function BodyTab({ result, prettyMode, scrollOffset, visibleHeight, searchQuery }) {
   if (!result || result.status === 'idle') {
     return <Text dimColor>No response yet. Press Enter to send request.</Text>;
@@ -92,7 +111,7 @@ function BodyTab({ result, prettyMode, scrollOffset, visibleHeight, searchQuery 
   );
 }
 
-function HeadersTab({ entries, scrollOffset, visibleHeight }) {
+function HeadersTab({ entries, scrollOffset, visibleHeight, searchQuery }) {
   if (entries.length === 0) return <Text dimColor>No headers</Text>;
 
   const visible = entries.slice(scrollOffset, scrollOffset + visibleHeight);
@@ -105,12 +124,16 @@ function HeadersTab({ entries, scrollOffset, visibleHeight }) {
       {visible.map(([key, value], i) => (
         <Box key={`${key}-${scrollOffset + i}`} flexShrink={0}>
           <Box width={keyWidth} flexShrink={0} marginRight={1}>
-            <Text color="magenta" bold wrap="truncate">
-              {key}
+            <Text wrap="truncate">
+              {searchQuery
+                ? highlightText(key, searchQuery, 'magenta', true)
+                : <Text color="magenta" bold>{key}</Text>}
             </Text>
           </Box>
           <Box flexGrow={1}>
-            <Text wrap="truncate">{String(value)}</Text>
+            <Text wrap="truncate">
+              {searchQuery ? highlightText(String(value), searchQuery) : String(value)}
+            </Text>
           </Box>
         </Box>
       ))}
@@ -118,7 +141,7 @@ function HeadersTab({ entries, scrollOffset, visibleHeight }) {
   );
 }
 
-function InfoTab({ result }) {
+function InfoTab({ result, searchQuery }) {
   if (!result || result.status === 'idle') return <Text dimColor>No response yet</Text>;
 
   const statusColor = result.statusCode < 400 ? 'green' : 'red';
@@ -139,7 +162,9 @@ function InfoTab({ result }) {
             <Text bold>{label}</Text>
           </Box>
           <Box flexGrow={1}>
-            <Text color={color} wrap={wrap}>{value}</Text>
+            {searchQuery
+              ? <Text wrap={wrap}>{highlightText(String(value), searchQuery, color)}</Text>
+              : <Text color={color} wrap={wrap}>{value}</Text>}
           </Box>
         </Box>
       ))}
@@ -339,18 +364,26 @@ export default function ResponseView({
             searchQuery={searchMode ? searchQuery : ''}
           />
         )}
-        {activeTab === 1 && <HeadersTab entries={headerEntries} scrollOffset={scrollOffset} visibleHeight={visibleHeight} />}
-        {activeTab === 2 && <InfoTab result={result} />}
+        {activeTab === 1 && (
+          <HeadersTab
+            entries={headerEntries}
+            scrollOffset={scrollOffset}
+            visibleHeight={visibleHeight}
+            searchQuery={searchMode ? searchQuery : ''}
+          />
+        )}
+        {activeTab === 2 && <InfoTab result={result} searchQuery={searchMode ? searchQuery : ''} />}
       </Box>
       {searchMode && (() => {
-        const bodyMatchCount = searchQuery && result?.body ? countMatches(result.body, searchQuery) : 0;
+        const fields = searchQuery ? getSearchableFields(result, activeTab, prettyMode) : [];
+        const matchCount = fields.reduce((sum, f) => sum + countMatches(f, searchQuery), 0);
         return (
         <Box paddingX={1} overflow="hidden">
           <Text color="yellow">/ </Text>
           <Text wrap="truncate">{searchQuery}</Text>
           <Text color="gray">▌</Text>
           {searchQuery && (
-            <Text color={bodyMatchCount > 0 ? 'green' : 'red'} wrap="truncate"> {bodyMatchCount} match{bodyMatchCount !== 1 ? 'es' : ''}</Text>
+            <Text color={matchCount > 0 ? 'green' : 'red'} wrap="truncate"> {matchCount} match{matchCount !== 1 ? 'es' : ''}</Text>
           )}
         </Box>
         );
