@@ -334,12 +334,12 @@ export default function RequestViewer({
         })}
       </Box>
       {searchMode && (
-        <Box paddingX={1}>
+        <Box paddingX={1} overflow="hidden">
           <Text color="yellow">/ </Text>
-          <Text>{searchQuery}</Text>
+          <Text wrap="truncate">{searchQuery}</Text>
           <Text color="gray">▌</Text>
           {searchQuery && (
-            <Text color={searchMatchLines.length > 0 ? 'green' : 'red'}>
+            <Text color={searchMatchLines.length > 0 ? 'green' : 'red'} wrap="truncate">
               {searchMatchLines.length > 0
                 ? ` ${searchMatchIdx + 1}/${searchMatchLines.length} lines`
                 : ' no matches'}

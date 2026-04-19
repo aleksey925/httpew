@@ -220,12 +220,12 @@ export default function RequestList({
         })}
       </Box>
       {searchMode && (
-        <Box paddingX={1} borderStyle="single" borderColor="yellow" borderTop borderBottom={false} borderLeft={false} borderRight={false}>
+        <Box paddingX={1} overflow="hidden" borderStyle="single" borderColor="yellow" borderTop borderBottom={false} borderLeft={false} borderRight={false}>
           <Text color="yellow">/ </Text>
-          <Text>{searchQuery}</Text>
+          <Text wrap="truncate">{searchQuery}</Text>
           <Text color="gray">▌</Text>
           {searchQuery && (
-            <Text color={filtered.length > 0 ? 'green' : 'red'}> {filtered.length}/{requests.length}</Text>
+            <Text color={filtered.length > 0 ? 'green' : 'red'} wrap="truncate"> {filtered.length}/{requests.length}</Text>
           )}
         </Box>
       )}

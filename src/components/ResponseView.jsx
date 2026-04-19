@@ -291,10 +291,10 @@ export default function ResponseView({
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} width={width} flexGrow={width ? 0 : 1}>
-      <Box paddingX={1} justifyContent="space-between">
-        <Box>
+      <Box paddingX={1} overflow="hidden">
+        <Box flexShrink={1} overflow="hidden">
           {tabs.map((tab, i) => (
-            <Text key={tab}>
+            <Text key={tab} wrap="truncate">
               {i > 0 && <Text> </Text>}
               <Text
                 color={activeTab === i ? 'whiteBright' : 'gray'}
@@ -305,25 +305,28 @@ export default function ResponseView({
             </Text>
           ))}
         </Box>
+        <Box flexGrow={1} minWidth={1} />
         {activeTab === 0 && (
-          <Text dimColor>{prettyMode ? 'Pretty' : 'Raw'}</Text>
+          <Box flexShrink={0}>
+            <Text dimColor>{prettyMode ? 'Pretty' : 'Raw'}</Text>
+          </Box>
         )}
       </Box>
       {statusLine && (
         <Box paddingX={1}>
-          <Text color={result.statusCode < 400 ? 'green' : 'red'} bold>
+          <Text color={result.statusCode < 400 ? 'green' : 'red'} bold wrap="truncate">
             {statusLine}
           </Text>
         </Box>
       )}
       {copied && (
         <Box paddingX={1}>
-          <Text color="green">✓ copied to clipboard</Text>
+          <Text color="green" wrap="truncate">✓ copied to clipboard</Text>
         </Box>
       )}
       {saved && (
         <Box paddingX={1}>
-          <Text color="green">✓ saved: {saved}</Text>
+          <Text color="green" wrap="truncate">✓ saved: {saved}</Text>
         </Box>
       )}
       <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
@@ -342,12 +345,12 @@ export default function ResponseView({
       {searchMode && (() => {
         const bodyMatchCount = searchQuery && result?.body ? countMatches(result.body, searchQuery) : 0;
         return (
-        <Box paddingX={1}>
+        <Box paddingX={1} overflow="hidden">
           <Text color="yellow">/ </Text>
-          <Text>{searchQuery}</Text>
+          <Text wrap="truncate">{searchQuery}</Text>
           <Text color="gray">▌</Text>
           {searchQuery && (
-            <Text color={bodyMatchCount > 0 ? 'green' : 'red'}> {bodyMatchCount} match{bodyMatchCount !== 1 ? 'es' : ''}</Text>
+            <Text color={bodyMatchCount > 0 ? 'green' : 'red'} wrap="truncate"> {bodyMatchCount} match{bodyMatchCount !== 1 ? 'es' : ''}</Text>
           )}
         </Box>
         );
