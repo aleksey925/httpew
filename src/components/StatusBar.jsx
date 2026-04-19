@@ -25,23 +25,23 @@ export default function StatusBar({ filePath, activeEnvironment, lastUpdated, sc
   const updated = timeAgo(lastUpdated);
 
   return (
-    <Box borderStyle="single" borderColor="gray" paddingX={1}>
-      <Text color="whiteBright" bold>
-        [{envLabel}]
-      </Text>
-      <Text> {fileName} </Text>
-      {updated && (
-        <Text dimColor>
-          ↻ updated {updated}
+    <Box borderStyle="single" borderColor="gray" paddingX={1} overflow="hidden">
+      <Box flexShrink={1} overflow="hidden">
+        <Text color="whiteBright" bold wrap="truncate">
+          [{envLabel}]
         </Text>
-      )}
-      {screenMode && screenMode !== 'normal' && (
-        <Text color="yellow"> [{screenMode}] </Text>
-      )}
-      <Box flexGrow={1} />
-      <Text dimColor>
-        Tab panels  +/- resize  ? help  q quit
-      </Text>
+        <Text wrap="truncate"> {fileName}</Text>
+        {updated && (
+          <Text dimColor wrap="truncate"> ↻ updated {updated}</Text>
+        )}
+        {screenMode && screenMode !== 'normal' && (
+          <Text color="yellow" wrap="truncate"> [{screenMode}]</Text>
+        )}
+      </Box>
+      <Box flexGrow={1} minWidth={1} />
+      <Box flexShrink={0}>
+        <Text dimColor>Tab panels  +/- resize  ? help  q quit</Text>
+      </Box>
     </Box>
   );
 }

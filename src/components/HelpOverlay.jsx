@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 const SECTIONS = [
   {
@@ -18,7 +19,7 @@ const SECTIONS = [
   {
     title: 'Request List (left)',
     keys: [
-      ['↑↓', 'navigate requests'],
+      ['↑↓ / j/k', 'navigate requests'],
       ['Enter', 'execute request'],
       ['i', 'open in $EDITOR'],
       ['c', 'copy as curl'],
@@ -28,8 +29,8 @@ const SECTIONS = [
   {
     title: 'Source (center)',
     keys: [
-      ['↑↓', 'scroll line by line'],
-      ['J / K', 'jump between requests'],
+      ['↑↓ / j/k', 'scroll line by line'],
+      ['[ / ]', 'jump between requests'],
       ['Enter', 'execute request'],
       ['i', 'open in $EDITOR'],
       ['c', 'copy as curl'],
@@ -39,11 +40,11 @@ const SECTIONS = [
   {
     title: 'Response (right)',
     keys: [
-      ['1/2/3', 'Body / Headers / Info tab'],
+      ['[ / ]', 'switch tab'],
       ['p', 'toggle Pretty / Raw'],
-      ['↑↓', 'scroll'],
-      ['c', 'copy body'],
-      ['s', 'save body to file'],
+      ['↑↓ / j/k', 'scroll'],
+      ['c', 'copy current tab'],
+      ['s', 'save current tab to file'],
       ['/', 'search body'],
     ],
   },
@@ -92,8 +93,7 @@ function buildLines(sections, colCount) {
 export default function HelpOverlay({ onClose }) {
   const [scrollOffset, setScrollOffset] = useState(0);
 
-  const termCols = process.stdout.columns || 80;
-  const termRows = process.stdout.rows || 24;
+  const { rows: termRows, columns: termCols } = useTerminalSize();
   const colCount = Math.max(1, Math.floor(termCols / COL_WIDTH));
   const lines = buildLines(SECTIONS, colCount);
 

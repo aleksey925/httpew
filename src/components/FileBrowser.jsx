@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import fs from 'node:fs';
 import path from 'node:path';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 function getEntries(dir) {
   try {
@@ -97,7 +98,8 @@ export default function FileBrowser({ onSelect, onCancel, initialPath }) {
     }
   });
 
-  const visibleHeight = process.stdout.rows ? process.stdout.rows - 4 : 20;
+  const { rows: termRows } = useTerminalSize();
+  const visibleHeight = Math.max(1, termRows - 4);
   const scrollOffset = Math.max(0, cursor - visibleHeight + 1);
   const visible = entries.slice(scrollOffset, scrollOffset + visibleHeight);
 

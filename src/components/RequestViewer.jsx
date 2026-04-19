@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { toCurl } from '../utils/curlExport.js';
 import { highlightText } from '../utils/highlight.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 function highlightHttp(content, activeStartLine, activeEndLine) {
   const lines = content.split('\n');
@@ -129,8 +130,9 @@ export default function RequestViewer({
   }
 
   const lines = highlightHttp(rawContent || '', activeNameLine, activeEndLine);
+  const { rows: termRows } = useTerminalSize();
   // panel chrome: border(2) + header(1) + footer(1) + statusbar(3) + search(1 if active)
-  const visibleHeight = process.stdout.rows ? process.stdout.rows - 8 : 20;
+  const visibleHeight = Math.max(1, termRows - 8);
 
   // lines containing search matches (for jumping between them)
   const searchMatchLines = (searchMode && searchQuery)
@@ -209,7 +211,7 @@ export default function RequestViewer({
         return;
       }
 
-      if ((key.shift && key.upArrow) || input === 'K') {
+      if (input === '[') {
         const currentIdx = requests.findIndex((r) => r.id === activeRequestId);
         if (currentIdx > 0) {
           const prevReq = requests[currentIdx - 1];
@@ -223,7 +225,7 @@ export default function RequestViewer({
         return;
       }
 
-      if ((key.shift && key.downArrow) || input === 'J') {
+      if (input === ']') {
         const currentIdx = requests.findIndex((r) => r.id === activeRequestId);
         if (currentIdx < requests.length - 1) {
           const nextReq = requests[currentIdx + 1];
@@ -237,7 +239,7 @@ export default function RequestViewer({
         return;
       }
 
-      if (key.upArrow) {
+      if (key.upArrow || input === 'k') {
         const next = Math.max(0, scrollOffsetRef.current - 1);
         const req = getRequestAtLine(next);
         if (req && req.id !== activeRequestId) {
@@ -248,7 +250,7 @@ export default function RequestViewer({
         return;
       }
 
-      if (key.downArrow) {
+      if (key.downArrow || input === 'j') {
         const next = Math.min(lines.length - 1, scrollOffsetRef.current + 1);
         const req = getRequestAtLine(next);
         if (req && req.id !== activeRequestId) {
@@ -290,7 +292,7 @@ export default function RequestViewer({
   const isSearching = searchMode && searchQuery;
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={1}>
+    <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={1} flexBasis={0}>
       <Box paddingX={1}>
         <Text bold color={isFocused ? 'whiteBright' : 'white'}>
           Source
@@ -332,12 +334,12 @@ export default function RequestViewer({
         })}
       </Box>
       {searchMode && (
-        <Box paddingX={1}>
+        <Box paddingX={1} overflow="hidden">
           <Text color="yellow">/ </Text>
-          <Text>{searchQuery}</Text>
+          <Text wrap="truncate">{searchQuery}</Text>
           <Text color="gray">▌</Text>
           {searchQuery && (
-            <Text color={searchMatchLines.length > 0 ? 'green' : 'red'}>
+            <Text color={searchMatchLines.length > 0 ? 'green' : 'red'} wrap="truncate">
               {searchMatchLines.length > 0
                 ? ` ${searchMatchIdx + 1}/${searchMatchLines.length} lines`
                 : ' no matches'}

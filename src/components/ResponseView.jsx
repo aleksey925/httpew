@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { saveBody } from '../utils/autoSave.js';
-import { highlightText, highlightJsonLine, countMatches, SPINNER_FRAMES } from '../utils/highlight.js';
+import { saveResponseContent, getBodyExtension } from '../utils/autoSave.js';
+import { highlightText, highlightJsonLine, SPINNER_FRAMES } from '../utils/highlight.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 function tryParseJson(result) {
   if (!result) return null;
@@ -18,6 +19,81 @@ function getBodyText(result, prettyMode) {
   const parsed = tryParseJson(result);
   if (prettyMode && parsed) return JSON.stringify(parsed, null, 2);
   return result.body;
+}
+
+function formatHeadersText(headers) {
+  if (!headers) return '';
+  return Object.entries(headers)
+    .flatMap(([k, v]) => (Array.isArray(v) ? v.map((item) => `${k}: ${item}`) : [`${k}: ${v}`]))
+    .join('\n');
+}
+
+// expand array-valued headers (e.g. set-cookie) into one row per value
+function expandHeaderEntries(headers) {
+  return Object.entries(headers).flatMap(([k, v]) =>
+    Array.isArray(v) ? v.map((item) => [k, item]) : [[k, v]],
+  );
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return `${bytes}b`;
+  return `${(bytes / 1024).toFixed(1)}kb`;
+}
+
+function formatInfoText(result) {
+  if (!result) return '';
+  const lines = [
+    `Status: ${result.statusCode ?? ''} ${result.statusText ?? ''}`.trim(),
+    `Time: ${result.time ? `${Math.round(result.time)}ms` : '—'}`,
+    `Size: ${formatSize(result.size)}`,
+    `URL: ${result.url || '—'}`,
+    `Timestamp: ${result.timestamp ? result.timestamp.toLocaleTimeString() : '—'}`,
+  ];
+  return lines.join('\n');
+}
+
+function getTabContent(result, activeTab, prettyMode) {
+  if (activeTab === 1) {
+    return { text: formatHeadersText(result?.headers), ext: '.txt', suffix: '.headers' };
+  }
+  if (activeTab === 2) {
+    return { text: formatInfoText(result), ext: '.txt', suffix: '.info' };
+  }
+  return { text: getBodyText(result, prettyMode), ext: getBodyExtension(result?.headers), suffix: '' };
+}
+
+function getInfoFields(result) {
+  if (!result || result.status === 'idle') return [];
+  return [
+    `${result.statusCode ?? ''} ${result.statusText ?? ''}`.trim(),
+    result.time ? `${Math.round(result.time)}ms` : '—',
+    formatSize(result.size),
+    result.url || '—',
+    result.timestamp ? result.timestamp.toLocaleTimeString() : '—',
+  ];
+}
+
+// indices of body lines / header entries / info rows that contain the query
+function getMatchPositions(activeTab, query, bodyText, headerEntries, infoFields) {
+  if (!query) return [];
+  const lq = query.toLowerCase();
+  if (activeTab === 0) {
+    return bodyText.split('\n').reduce((acc, line, i) => {
+      if (line.toLowerCase().includes(lq)) acc.push(i);
+      return acc;
+    }, []);
+  }
+  if (activeTab === 1) {
+    return headerEntries.reduce((acc, [k, v], i) => {
+      if (k.toLowerCase().includes(lq) || String(v).toLowerCase().includes(lq)) acc.push(i);
+      return acc;
+    }, []);
+  }
+  return infoFields.reduce((acc, f, i) => {
+    if (f.toLowerCase().includes(lq)) acc.push(i);
+    return acc;
+  }, []);
 }
 
 function BodyTab({ result, prettyMode, scrollOffset, visibleHeight, searchQuery }) {
@@ -49,58 +125,63 @@ function BodyTab({ result, prettyMode, scrollOffset, visibleHeight, searchQuery 
   );
 }
 
-function HeadersTab({ result }) {
-  if (!result?.headers) return <Text dimColor>No headers</Text>;
+function HeadersTab({ entries, scrollOffset, visibleHeight, searchQuery }) {
+  if (entries.length === 0) return <Text dimColor>No headers</Text>;
+
+  const visible = entries.slice(scrollOffset, scrollOffset + visibleHeight);
+  // adaptive key column: fit longest header name, clamped so it never eats all horizontal space
+  const maxKeyLen = entries.reduce((max, [k]) => Math.max(max, k.length), 0);
+  const keyWidth = Math.min(Math.max(maxKeyLen, 12), 40);
 
   return (
     <Box flexDirection="column" overflow="hidden">
-      {Object.entries(result.headers).map(([key, value]) => (
-        <Box key={key} flexShrink={0}>
-          <Text color="magenta" bold>
-            {key.padEnd(25)}
-          </Text>
-          <Text wrap="truncate">{String(value)}</Text>
+      {visible.map(([key, value], i) => (
+        <Box key={`${key}-${scrollOffset + i}`} flexShrink={0}>
+          <Box width={keyWidth} flexShrink={0} marginRight={1}>
+            <Text wrap="truncate">
+              {searchQuery
+                ? highlightText(key, searchQuery, 'magenta', true)
+                : <Text color="magenta" bold>{key}</Text>}
+            </Text>
+          </Box>
+          <Box flexGrow={1}>
+            <Text wrap="truncate">
+              {searchQuery ? highlightText(String(value), searchQuery) : String(value)}
+            </Text>
+          </Box>
         </Box>
       ))}
     </Box>
   );
 }
 
-function InfoTab({ result }) {
+function InfoTab({ result, searchQuery }) {
   if (!result || result.status === 'idle') return <Text dimColor>No response yet</Text>;
 
   const statusColor = result.statusCode < 400 ? 'green' : 'red';
 
-  function formatSize(bytes) {
-    if (!bytes) return '—';
-    if (bytes < 1024) return `${bytes}b`;
-    return `${(bytes / 1024).toFixed(1)}kb`;
-  }
+  const rows = [
+    { label: 'Status', value: `${result.statusCode} ${result.statusText}`, color: statusColor },
+    { label: 'Time', value: result.time ? `${Math.round(result.time)}ms` : '—' },
+    { label: 'Size', value: formatSize(result.size) },
+    { label: 'URL', value: result.url || '—', wrap: 'wrap' },
+    { label: 'Timestamp', value: result.timestamp ? result.timestamp.toLocaleTimeString() : '—' },
+  ];
 
   return (
     <Box flexDirection="column">
-      <Box>
-        <Text bold>{'Status'.padEnd(14)}</Text>
-        <Text color={statusColor}>
-          {result.statusCode} {result.statusText}
-        </Text>
-      </Box>
-      <Box>
-        <Text bold>{'Time'.padEnd(14)}</Text>
-        <Text>{result.time ? `${Math.round(result.time)}ms` : '—'}</Text>
-      </Box>
-      <Box>
-        <Text bold>{'Size'.padEnd(14)}</Text>
-        <Text>{formatSize(result.size)}</Text>
-      </Box>
-      <Box>
-        <Text bold>{'URL'.padEnd(14)}</Text>
-        <Text>{result.url || '—'}</Text>
-      </Box>
-      <Box>
-        <Text bold>{'Timestamp'.padEnd(14)}</Text>
-        <Text>{result.timestamp ? result.timestamp.toLocaleTimeString() : '—'}</Text>
-      </Box>
+      {rows.map(({ label, value, color, wrap = 'truncate' }) => (
+        <Box key={label} flexShrink={0}>
+          <Box width={12} flexShrink={0} marginRight={1}>
+            <Text bold>{label}</Text>
+          </Box>
+          <Box flexGrow={1}>
+            {searchQuery
+              ? <Text wrap={wrap}>{highlightText(String(value), searchQuery, color)}</Text>
+              : <Text color={color} wrap={wrap}>{value}</Text>}
+          </Box>
+        </Box>
+      ))}
     </Box>
   );
 }
@@ -139,6 +220,8 @@ export default function ResponseView({
   const [saved, setSaved] = useState(null);
   const [searchModeLocal, setSearchModeLocal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatchIdx, setSearchMatchIdx] = useState(0);
+  const preSearchOffsetRef = useRef(0);
   const copiedTimerRef = useRef(null);
   const savedTimerRef = useRef(null);
 
@@ -153,13 +236,43 @@ export default function ResponseView({
     setSearchActive(active);
   };
 
-  const visibleHeight = process.stdout.rows ? process.stdout.rows - 8 : 25;
+  const { rows: termRows } = useTerminalSize();
+  const visibleHeight = Math.max(1, termRows - 8);
   const tabs = ['Body', 'Headers', 'Info'];
 
   const bodyText = getBodyText(result, prettyMode);
-  const totalLines = bodyText ? bodyText.split('\n').length : 0;
+  const bodyLines = bodyText ? bodyText.split('\n').length : 0;
+  const headerEntries = useMemo(
+    () => (result?.headers ? expandHeaderEntries(result.headers) : []),
+    [result?.headers],
+  );
+  const totalLines = activeTab === 0 ? bodyLines : activeTab === 1 ? headerEntries.length : 0;
   const maxScroll = Math.max(0, totalLines - visibleHeight);
 
+  const matchPositions = useMemo(
+    () => searchMode && searchQuery
+      ? getMatchPositions(activeTab, searchQuery, bodyText, headerEntries, getInfoFields(result))
+      : [],
+    [searchMode, searchQuery, activeTab, bodyText, headerEntries, result],
+  );
+
+  // keep the active match index inside the matches list when it shrinks
+  // (e.g. response reloads, request switches, file is re-parsed)
+  useEffect(() => {
+    if (matchPositions.length === 0) {
+      if (searchMatchIdx !== 0) setSearchMatchIdx(0);
+    } else if (searchMatchIdx >= matchPositions.length) {
+      setSearchMatchIdx(matchPositions.length - 1);
+    }
+  }, [matchPositions.length, searchMatchIdx]);
+
+  const jumpToMatch = (idx) => {
+    if (matchPositions.length === 0) return;
+    setSearchMatchIdx(idx);
+    if (activeTab !== 2) {
+      setScrollOffset(Math.min(matchPositions[idx], maxScroll));
+    }
+  };
 
   useInput(
     (input, key) => {
@@ -167,26 +280,42 @@ export default function ResponseView({
 
       if (searchMode) {
         if (key.escape) {
+          setScrollOffset(preSearchOffsetRef.current);
           setSearchMode(false);
           setSearchQuery('');
+          setSearchMatchIdx(0);
           return;
         }
         if (key.backspace || key.delete) {
           setSearchQuery((prev) => prev.slice(0, -1));
+          setSearchMatchIdx(0);
           return;
         }
         if (key.return) {
           setSearchMode(false);
           return;
         }
+        if (key.downArrow) {
+          if (matchPositions.length > 0) {
+            jumpToMatch((searchMatchIdx + 1) % matchPositions.length);
+          }
+          return;
+        }
+        if (key.upArrow) {
+          if (matchPositions.length > 0) {
+            jumpToMatch((searchMatchIdx - 1 + matchPositions.length) % matchPositions.length);
+          }
+          return;
+        }
         if (input && !key.ctrl && !key.meta) {
           setSearchQuery((prev) => prev + input);
+          setSearchMatchIdx(0);
         }
         return;
       }
 
-      if (input === ']') { setActiveTab((prev) => (prev + 1) % tabs.length); return; }
-      if (input === '[') { setActiveTab((prev) => (prev - 1 + tabs.length) % tabs.length); return; }
+      if (input === ']') { setActiveTab((prev) => (prev + 1) % tabs.length); setScrollOffset(0); return; }
+      if (input === '[') { setActiveTab((prev) => (prev - 1 + tabs.length) % tabs.length); setScrollOffset(0); return; }
 
       if (input === 'p') {
         setPrettyMode((prev) => !prev);
@@ -194,20 +323,21 @@ export default function ResponseView({
         return;
       }
 
-      if (key.upArrow) {
+      if (key.upArrow || input === 'k') {
         setScrollOffset((prev) => Math.max(0, prev - 1));
         return;
       }
 
-      if (key.downArrow) {
+      if (key.downArrow || input === 'j') {
         setScrollOffset((prev) => Math.min(maxScroll, prev + 1));
         return;
       }
 
       if (input === 'c') {
-        if (result?.body) {
+        const { text } = getTabContent(result, activeTab, prettyMode);
+        if (text) {
           import('clipboardy').then((clip) => {
-            clip.default.writeSync(result.body);
+            clip.default.writeSync(text);
             setCopied(true);
             copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
           });
@@ -216,8 +346,9 @@ export default function ResponseView({
       }
 
       if (input === 's') {
-        if (result?.body && filePath && activeRequest) {
-          const outputPath = saveBody(filePath, activeRequest, result);
+        if (filePath && activeRequest) {
+          const content = getTabContent(result, activeTab, prettyMode);
+          const outputPath = saveResponseContent(filePath, activeRequest, content);
           if (outputPath) {
             setSaved(outputPath);
             savedTimerRef.current = setTimeout(() => setSaved(null), 3000);
@@ -227,6 +358,8 @@ export default function ResponseView({
       }
 
       if (input === '/') {
+        preSearchOffsetRef.current = scrollOffset;
+        setSearchMatchIdx(0);
         setSearchMode(true);
         setSearchQuery('');
         return;
@@ -241,10 +374,10 @@ export default function ResponseView({
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} width={width} flexGrow={width ? 0 : 1}>
-      <Box paddingX={1} justifyContent="space-between">
-        <Box>
+      <Box paddingX={1} overflow="hidden">
+        <Box flexShrink={1} overflow="hidden">
           {tabs.map((tab, i) => (
-            <Text key={tab}>
+            <Text key={tab} wrap="truncate">
               {i > 0 && <Text> </Text>}
               <Text
                 color={activeTab === i ? 'whiteBright' : 'gray'}
@@ -255,25 +388,28 @@ export default function ResponseView({
             </Text>
           ))}
         </Box>
+        <Box flexGrow={1} minWidth={1} />
         {activeTab === 0 && (
-          <Text dimColor>{prettyMode ? 'Pretty' : 'Raw'}</Text>
+          <Box flexShrink={0}>
+            <Text dimColor>{prettyMode ? 'Pretty' : 'Raw'}</Text>
+          </Box>
         )}
       </Box>
       {statusLine && (
         <Box paddingX={1}>
-          <Text color={result.statusCode < 400 ? 'green' : 'red'} bold>
+          <Text color={result.statusCode < 400 ? 'green' : 'red'} bold wrap="truncate">
             {statusLine}
           </Text>
         </Box>
       )}
       {copied && (
         <Box paddingX={1}>
-          <Text color="green">✓ copied to clipboard</Text>
+          <Text color="green" wrap="truncate">✓ copied to clipboard</Text>
         </Box>
       )}
       {saved && (
         <Box paddingX={1}>
-          <Text color="green">✓ saved: {saved}</Text>
+          <Text color="green" wrap="truncate">✓ saved: {saved}</Text>
         </Box>
       )}
       <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
@@ -286,22 +422,30 @@ export default function ResponseView({
             searchQuery={searchMode ? searchQuery : ''}
           />
         )}
-        {activeTab === 1 && <HeadersTab result={result} />}
-        {activeTab === 2 && <InfoTab result={result} />}
+        {activeTab === 1 && (
+          <HeadersTab
+            entries={headerEntries}
+            scrollOffset={scrollOffset}
+            visibleHeight={visibleHeight}
+            searchQuery={searchMode ? searchQuery : ''}
+          />
+        )}
+        {activeTab === 2 && <InfoTab result={result} searchQuery={searchMode ? searchQuery : ''} />}
       </Box>
-      {searchMode && (() => {
-        const bodyMatchCount = searchQuery && result?.body ? countMatches(result.body, searchQuery) : 0;
-        return (
-        <Box paddingX={1}>
+      {searchMode && (
+        <Box paddingX={1} overflow="hidden">
           <Text color="yellow">/ </Text>
-          <Text>{searchQuery}</Text>
+          <Text wrap="truncate">{searchQuery}</Text>
           <Text color="gray">▌</Text>
           {searchQuery && (
-            <Text color={bodyMatchCount > 0 ? 'green' : 'red'}> {bodyMatchCount} match{bodyMatchCount !== 1 ? 'es' : ''}</Text>
+            <Text color={matchPositions.length > 0 ? 'green' : 'red'} wrap="truncate">
+              {matchPositions.length > 0
+                ? ` ${searchMatchIdx + 1}/${matchPositions.length} matches`
+                : ' no matches'}
+            </Text>
           )}
         </Box>
-        );
-      })()}
+      )}
     </Box>
   );
 }

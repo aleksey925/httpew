@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { toCurl } from '../utils/curlExport.js';
 import { SPINNER_FRAMES } from '../utils/highlight.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
 function useSpinner(hasRunning) {
   const [frame, setFrame] = useState(0);
@@ -55,6 +56,11 @@ export default function RequestList({
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef(null);
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const { rows: termRows, columns: termCols } = useTerminalSize();
+
+  // status bar (3: content + top/bottom borders) + panel borders (2) + header (1) + search bar (2 when active: borderTop + content)
+  const visibleHeight = Math.max(1, termRows - (searchMode ? 8 : 6));
 
   useEffect(() => () => clearTimeout(copiedTimerRef.current), []);
 
@@ -63,12 +69,31 @@ export default function RequestList({
     setSearchActive(active);
   };
 
-  const filtered = searchMode && searchQuery
-    ? requests.filter((r) =>
-        r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.url.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : requests;
+  const filtered = useMemo(() =>
+    searchMode && searchQuery
+      ? requests.filter((r) =>
+          r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.url.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : requests,
+    [requests, searchMode, searchQuery],
+  );
+
+  // keep active item in view when it changes externally or when visible area shrinks (e.g. search toggled)
+  useEffect(() => {
+    const idx = filtered.findIndex((r) => r.id === activeRequestId);
+    if (idx === -1) return;
+    if (idx < scrollOffset) {
+      setScrollOffset(idx);
+    } else if (idx >= scrollOffset + visibleHeight) {
+      setScrollOffset(idx - visibleHeight + 1);
+    }
+  }, [activeRequestId, filtered, visibleHeight]);
+
+  // reset scroll when search changes
+  useEffect(() => {
+    setScrollOffset(0);
+  }, [searchQuery]);
 
   useInput(
     (input, key) => {
@@ -105,15 +130,25 @@ export default function RequestList({
         return;
       }
 
-      if (key.upArrow) {
+      if (key.upArrow || input === 'k') {
         const idx = filtered.findIndex((r) => r.id === activeRequestId);
-        if (idx > 0) setActiveRequestId(filtered[idx - 1].id);
+        if (idx > 0) {
+          setActiveRequestId(filtered[idx - 1].id);
+          if (idx - 1 < scrollOffset) {
+            setScrollOffset(idx - 1);
+          }
+        }
         return;
       }
 
-      if (key.downArrow) {
+      if (key.downArrow || input === 'j') {
         const idx = filtered.findIndex((r) => r.id === activeRequestId);
-        if (idx < filtered.length - 1) setActiveRequestId(filtered[idx + 1].id);
+        if (idx < filtered.length - 1) {
+          setActiveRequestId(filtered[idx + 1].id);
+          if (idx + 1 >= scrollOffset + visibleHeight) {
+            setScrollOffset(idx + 1 - visibleHeight + 1);
+          }
+        }
         return;
       }
 
@@ -147,7 +182,7 @@ export default function RequestList({
   const widthFraction = typeof width === 'string' && width.endsWith('%')
     ? parseInt(width) / 100
     : 0.25;
-  const panelWidth = Math.floor((process.stdout.columns || 80) * widthFraction) - 4;
+  const panelWidth = Math.floor(termCols * widthFraction) - 4;
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor={isFocused ? 'whiteBright' : 'gray'} flexGrow={width ? 0 : 1} width={width}>
@@ -157,9 +192,9 @@ export default function RequestList({
         </Text>
         {copied && <Text color="green"> ✓ copied</Text>}
       </Box>
-      <Box flexDirection="column" paddingX={1} flexGrow={1}>
+      <Box flexDirection="column" paddingX={1} flexGrow={1} overflow="hidden">
         {filtered.length === 0 && <Text dimColor>No requests found</Text>}
-        {filtered.map((req) => {
+        {filtered.slice(scrollOffset, scrollOffset + visibleHeight).map((req) => {
           const isActive = req.id === activeRequestId;
           const result = results.get(req.id);
           const running = isRunning(req.id);
@@ -185,12 +220,12 @@ export default function RequestList({
         })}
       </Box>
       {searchMode && (
-        <Box paddingX={1} borderStyle="single" borderColor="yellow" borderTop borderBottom={false} borderLeft={false} borderRight={false}>
+        <Box paddingX={1} overflow="hidden" borderStyle="single" borderColor="yellow" borderTop borderBottom={false} borderLeft={false} borderRight={false}>
           <Text color="yellow">/ </Text>
-          <Text>{searchQuery}</Text>
+          <Text wrap="truncate">{searchQuery}</Text>
           <Text color="gray">▌</Text>
           {searchQuery && (
-            <Text color={filtered.length > 0 ? 'green' : 'red'}> {filtered.length}/{requests.length}</Text>
+            <Text color={filtered.length > 0 ? 'green' : 'red'} wrap="truncate"> {filtered.length}/{requests.length}</Text>
           )}
         </Box>
       )}
