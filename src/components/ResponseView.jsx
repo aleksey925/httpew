@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { saveResponseContent, getBodyExtension } from '../utils/autoSave.js';
-import { highlightText, highlightJsonLine, countMatches, SPINNER_FRAMES } from '../utils/highlight.js';
+import { highlightText, highlightJsonLine, SPINNER_FRAMES } from '../utils/highlight.js';
 import { useSearchMode } from '../hooks/useSearchMode.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 
@@ -63,23 +63,37 @@ function getTabContent(result, activeTab, prettyMode) {
   return { text: getBodyText(result, prettyMode), ext: getBodyExtension(result?.headers), suffix: '' };
 }
 
-// strings that participate in search highlighting on the active tab
-function getSearchableFields(result, activeTab, prettyMode) {
+function getInfoFields(result) {
+  if (!result || result.status === 'idle') return [];
+  return [
+    `${result.statusCode ?? ''} ${result.statusText ?? ''}`.trim(),
+    result.time ? `${Math.round(result.time)}ms` : '—',
+    formatSize(result.size),
+    result.url || '—',
+    result.timestamp ? result.timestamp.toLocaleTimeString() : '—',
+  ];
+}
+
+// indices of body lines / header entries / info rows that contain the query
+function getMatchPositions(activeTab, query, bodyText, headerEntries, infoFields) {
+  if (!query) return [];
+  const lq = query.toLowerCase();
+  if (activeTab === 0) {
+    return bodyText.split('\n').reduce((acc, line, i) => {
+      if (line.toLowerCase().includes(lq)) acc.push(i);
+      return acc;
+    }, []);
+  }
   if (activeTab === 1) {
-    if (!result?.headers) return [];
-    return expandHeaderEntries(result.headers).flatMap(([k, v]) => [k, String(v)]);
+    return headerEntries.reduce((acc, [k, v], i) => {
+      if (k.toLowerCase().includes(lq) || String(v).toLowerCase().includes(lq)) acc.push(i);
+      return acc;
+    }, []);
   }
-  if (activeTab === 2) {
-    if (!result || result.status === 'idle') return [];
-    return [
-      `${result.statusCode ?? ''} ${result.statusText ?? ''}`.trim(),
-      result.time ? `${Math.round(result.time)}ms` : '—',
-      formatSize(result.size),
-      result.url || '—',
-      result.timestamp ? result.timestamp.toLocaleTimeString() : '—',
-    ];
-  }
-  return [getBodyText(result, prettyMode)];
+  return infoFields.reduce((acc, f, i) => {
+    if (f.toLowerCase().includes(lq)) acc.push(i);
+    return acc;
+  }, []);
 }
 
 function BodyTab({ result, prettyMode, scrollOffset, visibleHeight, searchQuery }) {
@@ -206,6 +220,8 @@ export default function ResponseView({
   const [saved, setSaved] = useState(null);
   const [searchModeLocal, setSearchModeLocal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatchIdx, setSearchMatchIdx] = useState(0);
+  const preSearchOffsetRef = useRef(0);
   const copiedTimerRef = useRef(null);
   const savedTimerRef = useRef(null);
 
@@ -233,6 +249,30 @@ export default function ResponseView({
   const totalLines = activeTab === 0 ? bodyLines : activeTab === 1 ? headerEntries.length : 0;
   const maxScroll = Math.max(0, totalLines - visibleHeight);
 
+  const matchPositions = useMemo(
+    () => searchMode && searchQuery
+      ? getMatchPositions(activeTab, searchQuery, bodyText, headerEntries, getInfoFields(result))
+      : [],
+    [searchMode, searchQuery, activeTab, bodyText, headerEntries, result],
+  );
+
+  // keep the active match index inside the matches list when it shrinks
+  // (e.g. response reloads, request switches, file is re-parsed)
+  useEffect(() => {
+    if (matchPositions.length === 0) {
+      if (searchMatchIdx !== 0) setSearchMatchIdx(0);
+    } else if (searchMatchIdx >= matchPositions.length) {
+      setSearchMatchIdx(matchPositions.length - 1);
+    }
+  }, [matchPositions.length, searchMatchIdx]);
+
+  const jumpToMatch = (idx) => {
+    if (matchPositions.length === 0) return;
+    setSearchMatchIdx(idx);
+    if (activeTab !== 2) {
+      setScrollOffset(Math.min(matchPositions[idx], maxScroll));
+    }
+  };
 
   useInput(
     (input, key) => {
@@ -240,20 +280,36 @@ export default function ResponseView({
 
       if (searchMode) {
         if (key.escape) {
+          setScrollOffset(preSearchOffsetRef.current);
           setSearchMode(false);
           setSearchQuery('');
+          setSearchMatchIdx(0);
           return;
         }
         if (key.backspace || key.delete) {
           setSearchQuery((prev) => prev.slice(0, -1));
+          setSearchMatchIdx(0);
           return;
         }
         if (key.return) {
           setSearchMode(false);
           return;
         }
+        if (key.downArrow) {
+          if (matchPositions.length > 0) {
+            jumpToMatch((searchMatchIdx + 1) % matchPositions.length);
+          }
+          return;
+        }
+        if (key.upArrow) {
+          if (matchPositions.length > 0) {
+            jumpToMatch((searchMatchIdx - 1 + matchPositions.length) % matchPositions.length);
+          }
+          return;
+        }
         if (input && !key.ctrl && !key.meta) {
           setSearchQuery((prev) => prev + input);
+          setSearchMatchIdx(0);
         }
         return;
       }
@@ -302,6 +358,8 @@ export default function ResponseView({
       }
 
       if (input === '/') {
+        preSearchOffsetRef.current = scrollOffset;
+        setSearchMatchIdx(0);
         setSearchMode(true);
         setSearchQuery('');
         return;
@@ -374,20 +432,20 @@ export default function ResponseView({
         )}
         {activeTab === 2 && <InfoTab result={result} searchQuery={searchMode ? searchQuery : ''} />}
       </Box>
-      {searchMode && (() => {
-        const fields = searchQuery ? getSearchableFields(result, activeTab, prettyMode) : [];
-        const matchCount = fields.reduce((sum, f) => sum + countMatches(f, searchQuery), 0);
-        return (
+      {searchMode && (
         <Box paddingX={1} overflow="hidden">
           <Text color="yellow">/ </Text>
           <Text wrap="truncate">{searchQuery}</Text>
           <Text color="gray">▌</Text>
           {searchQuery && (
-            <Text color={matchCount > 0 ? 'green' : 'red'} wrap="truncate"> {matchCount} match{matchCount !== 1 ? 'es' : ''}</Text>
+            <Text color={matchPositions.length > 0 ? 'green' : 'red'} wrap="truncate">
+              {matchPositions.length > 0
+                ? ` ${searchMatchIdx + 1}/${matchPositions.length} matches`
+                : ' no matches'}
+            </Text>
           )}
         </Box>
-        );
-      })()}
+      )}
     </Box>
   );
 }
