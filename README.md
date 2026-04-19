@@ -8,6 +8,7 @@ Powered by [httpyac](https://httpyac.github.io/), runs in any terminal without a
 - [Compatibility](#compatibility)
 - [How to Use](#how-to-use)
   - [Environment Files](#environment-files)
+- [Development](#development)
 
 ## Why httpew?
 
@@ -28,19 +29,7 @@ curl -#L "https://github.com/aleksey925/httpew/releases/download/v${VERSION}/htt
 mv ~/.local/bin/httpew-${OS}-${ARCH} ~/.local/bin/httpew
 ```
 
-Also, you can build it from source (requires [Bun](https://bun.sh)):
-
-```bash
-git clone https://github.com/aleksey925/httpew.git
-cd httpew
-make install  # compiles and copies to ~/.local/bin
-```
-
-Make sure `~/.local/bin` is in your PATH:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
+Also, you can [build from source](#build).
 
 ## Compatibility
 
@@ -121,3 +110,30 @@ Private values override public ones. Both files use the same format:
 ```
 
 Variables are referenced in requests as `{{host}}`, `{{token}}`, etc. Switch environments with `E` inside the app.
+
+## Development
+
+### Prerequisites
+
+- [mise](https://mise.jdx.dev/getting-started.html#installing-mise-cli) for managing toolchains
+
+### Set up environment
+
+- install toolchains and deps
+
+  ```bash
+  mise trust && mise install
+  make deps
+  ```
+
+### Build
+
+Two options:
+
+- `make build` — builds the binary into `dist/`.
+- `make install` — builds and installs the binary to `~/.local/bin`.
+  Ensure this directory is in your `PATH`:
+
+  ```bash
+  export PATH="$HOME/.local/bin:$PATH"
+  ```
